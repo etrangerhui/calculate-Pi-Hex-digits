@@ -1,0 +1,222 @@
+<html>
+<head>
+<script language="JavaScript">
+//javascript 整数只能表示+- 2^53之间的数，而位运算只适用于32位整数，大于部分舍掉
+//3.243f6a8885a308d313198a2e03707344a4093822299f31d00
+//因此该script可以计算2^50之内位数的pi值16进制表示
+	var perc=0.,per=0.; //计算pi第几位的进度%
+	var fperc=0.,fper;  //计算求和公式的进度% , 用到的时间计数,大于间隔时间则输出
+	var epsf=1000;   //时间间隔1秒
+	var testbig=1;
+	var u=1;
+	var RADIX=3;
+	var RAD=(1<<RADIX);
+	var PS=10;           //模拟16进制小数点后7位
+	var NHX=1;          //可靠精度只有8位,!!!万一出现FFFFFFFF的情形,计算也是不可靠的
+	var MAX=(u<<((PS-6)<<2))*(u<<((NHX+6)<<2));  //乘子=16^15
+  //Number.MAX_SAFE_INTEGER的值为2**53 - 1，即9007199254740991
+var newbuf=new Array(u,u<<4,u<<8,u<<12,u<<16,u<<20,u<<24,u<<28,u<<32,u<<36,u<<40,u<<44,u<<48,u<<52,u<<56,u<<60);
+var bb=[0,0,0,0,1,2,3];
+var out="3.";
+</script>
+</head><body>Your Contribution to Calculation of Hex Pi
+  
+
+<p>
+  <b ID="pihexbit"> pihexbit:<br>
+  <b ID="yourid"> yourid:<br>
+  <b ID="partresult"> partresult:</b>
+  <script language="JavaScript">
+  function Floor(xx, ak) {  
+    var count = 0;  
+    var remaining = xx;  
+  
+    while (remaining >= ak) {  
+        remaining -= ak;  
+        count++;  
+    }  
+  
+    return count;  
+}  
+  function expm (   p,   ak)
+	{
+		var  r=1;       //余数
+		var p1=p>>1;   //p1=p*2
+		var pt;        //循环变量从2^k,2^k-1循环到2
+		var tp,t,s;        //比p小的2^k数
+        var i,j,k;
+		var m,n;
+		var buf=new Array(64);                                 
+        if (ak == 1) return 0;//任意数都可以整除1 
+		if(p<RAD)return newbuf[p]%ak;     // 计算<16^15 % ak不用那莫麻烦了吧;
+        for (p1=p,i = 0; p1>0; i++)
+		{
+		    buf[i]=p1 % RAD;     //buf中存储p的1<<RADIX进制表示 
+			p1=Floor(p1,RAD);
+		}
+		for (r=1,j=i-1;j>0;j--)         
+		{ 
+			for(m=0;m<(buf[j]*4);m++)r=(r+r)%ak;         //r自加buf[j]*4次，相当于r*16^buf[j]
+			for(k=0;k<RADIX;k++)                          //r自乘RADIX次，相当于r^(2^RADIX)
+			{
+				p1=r;t=r;s=r;                        //r*r=r*(a0+a1*(1<<RADIX)^1+a2*(1<<RADIX)^2+..)
+				r=0;
+				for (p1=s,m = 0; p1>0; m++)           //取得a[i]=p1 & ((1<<RADIX)-1))
+				{			
+					r=(r+(t*(p1 % RAD))%ak)%ak;     //r 取求和sum t*a[i]
+					t=(t*RAD)%ak;                           //t=r*(1<<RADIX)^i
+					p1=Floor(p1,RAD);
+				}
+			} 
+		} 
+		for(m=0;m<(buf[0]*4);m++)r=(r+r)%ak;
+		return r;                 //0次项不用计算^(2^RADIX)
+   
+	}
+	function series1 (m, from , ic,inc) //　计算16^(ic-k)/(8k+m)的求和（k从0到ic-1）
+	{
+		var  k;
+		var ak, p,n;
+		var  t=0;
+		var s=0;
+		//  这是16进制8+7位小数部分　　求和公式前ic-1项的和,其中>15位的位数通过expm忽略掉了
+        var x,y;                     //计算MAX*t/ak,但MAX*ak肯定超出范围，又不想出现t*ak之类 
+		
+  
+		for (k = from; k <= ic; k+=inc)
+		{
+  	
+			ak = (k*8) + m;
+			p = ic - k;                            // 计算16^ic * sum(1/16^k*sum 1/(aki) )
+	
+			t = expm (p, ak);                      //使用expm计算16^p%ak, 16^p/ak的整数部分忽略掉了	
+			//算法1，2：肯定出现t*ak的项，表明ak必须<2^31
+			
+			 //s += Math.floor(MAX / ak) * t + Math.floor(MAX%ak * t / ak);   //等价于 （MAX*t)/ak, 但MAX*t可能超出范围
+			
+			//算法3：只出现ak*2的类似项，因此ak可以到2^61, 相应ic可以到2^58
+			
+			x=t;
+			y=0;
+			for(n=0;n<(PS+NHX)*4;n++)       //乘以MAX＝16^(PS+NHX)相当于t自加(PS+NHX)*4次
+			{
+				y+=Floor(x,ak); 
+				x%=ak;
+				x=x+x;                            //t自加
+				y=y+y;                            //商当然也要自加
+				                         //商还要加上t自加>ak的个数
+				y%=MAX;
+				                            //然后留下剩余<ak的部分
+			}
+    
+			s+=y;                                 //这完全是为了迎合算法3的需要
+            
+			//i=(k-from)/inc;s+=tmp[i][0][bb[m]]*t +tmp[i][1][bb[m]]*t/ak;
+			s%=MAX;
+			//if(s<0)s+=MAX;
+       /*
+			if(from==0 )
+			{
+				fper=System.currentTimeMillis();
+				if(fper-fperc>epsf)
+				{
+					fperc=fper;     	 
+					System.out.print(" total: %"+per+" mod: %"+((double)k/ic+bb[m])*25.0+"\r");  //打印当前计算进度
+				}
+			}
+        */
+		
+   
+		}
+		//printf("%d %d %lld %lld\n",m,from,ic,s);
+		return s;
+	}
+  
+  function  pibitic1(  t , myid, numprocs)
+	{
+		var pid, s1, s2, s3, s4,s;
+		s1 = series1 (1, myid,t-1,numprocs);            // 16^t * sum(1/16^k*sum 1/(8*k+1) )小数部分(k=0,ic-2)
+		s2 = series1 (4,myid,t-1,numprocs);             // 16^t * sum(1/16^k*sum 1/(8*k+4) )小数部分(k=0,ic-2)
+		s3 = series1 (5, myid,t-1,numprocs);            // 16^t * sum(1/16^k*sum 1/(8*k+5) )小数部分(k=0,ic-2)
+		s4 = series1 (6,myid,t-1,numprocs);             // 16^t * sum(1/16^k*sum 1/(8*k+6) )小数部分(k=0,ic-2)
+
+		pid =  (s1*4) - (s2*2) - s3 - s4;   //计算16^t*sum(1/16^k *(4/(8k+1)-2/(8k+4)-1/(8k+5)-1/(8k+6))
+    return pid;
+ 
+	}
+	function q_pow(a, b, mod) {  
+    var res = 1;  
+    while (b > 0) {  
+        if (b & 1) {  
+            res = (res * a) % mod;  
+        }  
+        a = (a * a) % mod;  
+        b >>= 1;  
+    }  
+    return res;  
+}  
+	function bbp(n, b) {  
+    var res = 0;  
+    var i;
+    for ( i = 0; i <= n; i++) {  
+        res += q_pow(16, n - i, 8 * i + b) / (8 * i + b);  
+    }  
+    
+    for ( i = n + 1; i <= n + 1000 + 1; i++) {  
+        res += Math.pow(16, n - i) / (8 * i + b);  
+    }  
+  
+    return res;  
+}  
+  function main(n,myid,numprocs) 
+       {  
+       	var pid1, s1, s2, s3, s4;
+       	var ans1,xx,c;
+       	         s1 = bbp(n - 1,  1);            // 16^t * sum(1/16^k*sum 1/(8*k+1) )小数部分(k=0,ic-2)
+	               s2 = bbp(n - 1,  4);             // 16^t * sum(1/16^k*sum 1/(8*k+4) )小数部分(k=0,ic-2)
+		             s3 = bbp(n - 1,  5);            // 16^t * sum(1/16^k*sum 1/(8*k+5) )小数部分(k=0,ic-2)
+		             s4 = bbp(n - 1,  6);             // 16^t * sum(1/16^k*sum 1/(8*k+6) )小数部分(k=0,ic-2)
+  
+		            pid1 =  4*s1 - 2*s2 - s3 - s4;   //计算16^t*sum(1/16^k *(4/(8k+1)-2/(8k+4)-1/(8k+5)-1/(8k+6))
+                ans1=pid1;
+                ans1 -= Math.floor(pid1);  
+                if (ans1 < 0) ans1 += 1.0;  
+                ans1 *= 16.0;  
+                 xx = Math.floor(ans1);  
+                 //c = xx >= 0 && xx <= 9 ? String.fromCharCode(xx + '0'.charCodeAt(0)) : String.fromCharCode(xx - 10 + 'A'.charCodeAt(0));  
+                 c=xx.toString(16);
+                return c; 
+            }
+  
+  ID=window.setTimeout("Update();",1000);
+  //for(testbig=1;testbig<100;testbig++)document.write(pibitic1(testbig,0,1)+"<br>");
+  function Update()
+  {
+
+  now = new Date();
+  localtime = now.toString();
+  utctime = now.toGMTString();
+  lbpihexbit=document.getElementById("pihexbit");
+  lbpihexbit.firstChild.nodeValue="pihexbit:"+(testbig);
+  lbyourid=document.getElementById("yourid");
+  lbyourid.firstChild.nodeValue="yourid:"+testbig;
+  lbpartresult=document.getElementById("partresult");
+  pid=pibitic1(testbig,0,3)+pibitic1(testbig,1,3)+pibitic1(testbig,2,3);
+    pid%=MAX;if(pid<0)pid+=MAX;		
+		result= (pid).toString(16);
+  if(result.length<PS+NHX)out="0";
+  else out=result[0];
+  lbpartresult.firstChild.nodeValue="partresult:"+out;
+  ID=window.setTimeout("Update();",1000);
+  
+  testbig+=1;
+  
+  }
+  
+  
+  
+  
+ </script>
+</p>
+</body>
+</html>
